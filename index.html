@@ -26,6 +26,20 @@
             overflow-y: auto;
             position: relative;
             padding-bottom: 20px;
+            touch-action: pan-y; /* Permitir scroll vertical pero no horizontal */
+        }
+
+        /* Prevenir scroll cuando el juego está activo */
+        body.game-active {
+            overflow: hidden;
+            height: 100vh;
+        }
+
+        @media (max-width: 768px) {
+            body {
+                overflow-y: auto;
+                touch-action: manipulation;
+            }
         }
 
         /* Fondo con efecto de estrellas */
@@ -154,6 +168,9 @@
             border-radius: 5px;
             max-width: 100%;
             height: auto;
+            touch-action: none;
+            user-select: none;
+            -webkit-user-select: none;
         }
 
         .instructions {
@@ -457,8 +474,13 @@
             box-shadow: 
                 0 0 20px #00ffff,
                 inset 0 0 20px rgba(0, 255, 255, 0.2);
-            touch-action: manipulation;
+            touch-action: none;
             -webkit-tap-highlight-color: transparent;
+            user-select: none;
+            -webkit-user-select: none;
+            -moz-user-select: none;
+            -ms-user-select: none;
+            pointer-events: auto;
         }
 
         .mobile-btn:active {
@@ -1202,6 +1224,12 @@
 
         // Control del teclado
         document.addEventListener('keydown', (e) => {
+            // Prevenir scroll cuando se presionan las flechas
+            if (e.key === 'ArrowUp' || e.key === 'ArrowDown' || 
+                e.key === 'ArrowLeft' || e.key === 'ArrowRight') {
+                e.preventDefault();
+            }
+
             // Solo permitir cambios de dirección si el juego está corriendo
             if (!gameRunning) return;
 
@@ -1254,70 +1282,91 @@
             }
         }
 
-        // Event listeners para botones móviles
-        const btnUp = document.getElementById('btnUp');
-        const btnDown = document.getElementById('btnDown');
-        const btnLeft = document.getElementById('btnLeft');
-        const btnRight = document.getElementById('btnRight');
-
         // Función para prevenir eventos por defecto y propagación
         function preventDefaults(e) {
-            e.preventDefault();
-            e.stopPropagation();
+            if (e) {
+                e.preventDefault();
+                e.stopPropagation();
+                e.stopImmediatePropagation();
+            }
+            return false;
         }
 
-        // Botón Arriba
-        btnUp.addEventListener('touchstart', (e) => {
-            preventDefaults(e);
-            handleDirection(0, -1);
-        }, { passive: false });
+        // Inicializar controles móviles cuando el DOM esté listo
+        function initMobileControls() {
+            const btnUp = document.getElementById('btnUp');
+            const btnDown = document.getElementById('btnDown');
+            const btnLeft = document.getElementById('btnLeft');
+            const btnRight = document.getElementById('btnRight');
 
-        btnUp.addEventListener('touchend', preventDefaults, { passive: false });
-        btnUp.addEventListener('click', (e) => {
-            e.preventDefault();
-            handleDirection(0, -1);
-        });
+            if (!btnUp || !btnDown || !btnLeft || !btnRight) {
+                // Los botones no están disponibles aún, reintentar después
+                return false;
+            }
 
-        // Botón Abajo
-        btnDown.addEventListener('touchstart', (e) => {
-            preventDefaults(e);
-            handleDirection(0, 1);
-        }, { passive: false });
+            // Función helper para agregar eventos a un botón
+            function setupMobileButton(button, directionX, directionY) {
+                if (!button) return;
 
-        btnDown.addEventListener('touchend', preventDefaults, { passive: false });
-        btnDown.addEventListener('click', (e) => {
-            e.preventDefault();
-            handleDirection(0, 1);
-        });
+                // Evento touchstart - principal para móviles
+                button.addEventListener('touchstart', function(e) {
+                    preventDefaults(e);
+                    handleDirection(directionX, directionY);
+                }, { passive: false });
 
-        // Botón Izquierda
-        btnLeft.addEventListener('touchstart', (e) => {
-            preventDefaults(e);
-            handleDirection(-1, 0);
-        }, { passive: false });
+                // Evento touchend
+                button.addEventListener('touchend', function(e) {
+                    preventDefaults(e);
+                }, { passive: false });
 
-        btnLeft.addEventListener('touchend', preventDefaults, { passive: false });
-        btnLeft.addEventListener('click', (e) => {
-            e.preventDefault();
-            handleDirection(-1, 0);
-        });
+                // Evento touchcancel
+                button.addEventListener('touchcancel', function(e) {
+                    preventDefaults(e);
+                }, { passive: false });
 
-        // Botón Derecha
-        btnRight.addEventListener('touchstart', (e) => {
-            preventDefaults(e);
-            handleDirection(1, 0);
-        }, { passive: false });
+                // Evento click (fallback para navegadores que no soportan touch)
+                button.addEventListener('click', function(e) {
+                    preventDefaults(e);
+                    handleDirection(directionX, directionY);
+                });
 
-        btnRight.addEventListener('touchend', preventDefaults, { passive: false });
-        btnRight.addEventListener('click', (e) => {
-            e.preventDefault();
-            handleDirection(1, 0);
-        });
+                // Prevenir scroll
+                button.addEventListener('touchmove', function(e) {
+                    preventDefaults(e);
+                }, { passive: false });
 
-        // Prevenir scroll al tocar los botones
-        document.querySelectorAll('.mobile-btn').forEach(btn => {
-            btn.addEventListener('touchmove', preventDefaults, { passive: false });
-        });
+                // Prevenir selección de texto y otros eventos
+                button.addEventListener('selectstart', preventDefaults);
+                button.addEventListener('contextmenu', preventDefaults);
+            }
+
+            // Configurar cada botón
+            setupMobileButton(btnUp, 0, -1);
+            setupMobileButton(btnDown, 0, 1);
+            setupMobileButton(btnLeft, -1, 0);
+            setupMobileButton(btnRight, 1, 0);
+
+            return true;
+        }
+
+        // Intentar inicializar controles móviles
+        function tryInitMobileControls() {
+            if (initMobileControls()) {
+                console.log('Controles móviles inicializados correctamente');
+            } else {
+                // Reintentar si los botones no están disponibles
+                setTimeout(tryInitMobileControls, 50);
+            }
+        }
+
+        // Inicializar controles móviles cuando el DOM esté listo
+        if (document.readyState === 'loading') {
+            document.addEventListener('DOMContentLoaded', tryInitMobileControls);
+        } else {
+            // DOM ya está listo, intentar inmediatamente y con delay
+            tryInitMobileControls();
+            setTimeout(tryInitMobileControls, 100);
+        }
 
         // Iniciar el juego
         draw();
